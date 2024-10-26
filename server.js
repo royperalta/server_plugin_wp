@@ -6,6 +6,10 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const FormData = require('form-data');
 const axios = require('axios');
+require('dotenv').config(); // Configurar dotenv para leer las variables de entorno
+// Importar dependencias
+const https = require('https'); // Importar módulo https
+const http = require('http');     // Importar módulo http
 
 const app = express();
 app.use(cors());
@@ -208,6 +212,23 @@ async function postToFacebookStory(imagePath, title, postUrl,pageId,access_token
 
 
 
-app.listen(3000, () => {
-    console.log('Servidor escuchando en http://localhost:3000');
-});
+const PORT = process.env.PORT || 3700;
+
+if (process.env.NODE_ENV === 'production') {  
+    // Configuración HTTPS en producción
+    const httpsOptions = {
+        key: fs.readFileSync('/etc/letsencrypt/live/envivo.top/privkey.pem'), // Ruta a tu clave privada
+        cert: fs.readFileSync('/etc/letsencrypt/live/envivo.top/fullchain.pem'), // Ruta a tu certificado
+    };
+
+    const httpsServer = https.createServer(httpsOptions, app);
+    httpsServer.listen(PORT, () => {
+        console.log('Servidor HTTPS corriendo en el puerto ' + PORT);
+    });
+} else {
+    // Configuración HTTP en desarrollo
+    const httpServer = http.createServer(app);
+    httpServer.listen(PORT, () => {
+        console.log('Servidor HTTP corriendo en el puerto ' + PORT);
+    });
+}
