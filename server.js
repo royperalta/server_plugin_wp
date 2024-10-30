@@ -23,8 +23,8 @@ if (!fs.existsSync(outputDir)) {
 }
 
 app.post('/generate-image', async (req, res) => {
-    const { imageUrl, title, logoUrl, category, categoryBgColor, categoryTextColor, postUrl,pageId,access_token } = req.body;
-
+    const { imageUrl, title, logoUrl, category, categoryBgColor, categoryTextColor, postUrl, pageId, access_token, publishToStory } = req.body;
+    console.log(req.body)
     try {
         const browser = await chromium.launch({ headless: true });
         const page = await browser.newPage();
@@ -126,8 +126,8 @@ app.post('/generate-image', async (req, res) => {
         fs.writeFileSync(outputPath, imageBuffer);
 
         // Publicar en Facebook con la URL del post
-        await postToFacebook(outputPath, title, postUrl,pageId,access_token);
-        
+        await postToFacebook(outputPath, title, postUrl, pageId, access_token, publishToStory);
+
 
         res.json({ imagePath: outputPath });
     } catch (error) {
@@ -135,7 +135,7 @@ app.post('/generate-image', async (req, res) => {
     }
 });
 
-async function postToFacebook(imagePath, title, postUrl,pageId,access_token) {
+async function postToFacebook(imagePath, title, postUrl, pageId, access_token, publishToStory) {
     try {
         const formData = new FormData();
         formData.append('file', fs.createReadStream(imagePath)); // Crea un stream del archivo
@@ -159,19 +159,21 @@ async function postToFacebook(imagePath, title, postUrl,pageId,access_token) {
         });
 
 
-        console.log('Comentario agregado al post:', postUrl);      
+        console.log('Comentario agregado al post:', postUrl);
 
-       
+
         // Publicar en "Your Story"
-        await postToFacebookStory(imagePath, title, postUrl,pageId,access_token); // Aquí llamas a la función para publicar en las historias
+        if (publishToStory) {
+            await postToFacebookStory(imagePath, title, postUrl, pageId, access_token); // Aquí llamas a la función para publicar en las historias
+        }
+
 
     } catch (error) {
         console.error('Error al publicar en Facebook:', error.message);
     }
 }
 
-
-async function uploadPhoto(imagePath,pageId,access_token) {
+async function uploadPhoto(imagePath, pageId, access_token) {
     try {
         const formData = new FormData();
         formData.append('file', fs.createReadStream(imagePath)); // Crea un stream del archivo
@@ -194,14 +196,15 @@ async function uploadPhoto(imagePath,pageId,access_token) {
 
 
 
-async function postToFacebookStory(imagePath, title, postUrl,pageId,access_token) {
+async function postToFacebookStory(imagePath, title, postUrl, pageId, access_token) {
     try {
-        const photoId = await uploadPhoto(imagePath,pageId,access_token); // Subir la foto primero
+        const photoId = await uploadPhoto(imagePath, pageId, access_token); // Subir la foto primero
 
         // Publicar la historia usando el photo_id
-        const response = await axios.post(`https://graph.facebook.com/v12.0/${pageId}/photo_stories?access_token=${access_token}`, {
+        const response = await axios.post(`https://graph.facebook.com/v21.0/${pageId}/photo_stories?access_token=${access_token}`, {
             photo_id: photoId, // Usa el ID de la foto
             link: postUrl, // Incluye el enlace
+            message: title // Agrega el título como mensaje (opcional)
         });
 
         console.log('Historia publicada en Facebook:', response.data);
@@ -214,7 +217,7 @@ async function postToFacebookStory(imagePath, title, postUrl,pageId,access_token
 
 const PORT = process.env.PORT || 3700;
 
-if (process.env.NODE_ENV === 'production') {  
+if (process.env.NODE_ENV === 'production') {
     // Configuración HTTPS en producción
     const httpsOptions = {
         key: fs.readFileSync('/etc/letsencrypt/live/envivo.top/privkey.pem'), // Ruta a tu clave privada
